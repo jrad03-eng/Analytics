@@ -1,0 +1,527 @@
+import { useState, useRef } from "react";
+
+// ─── Data ────────────────────────────────────────────────────────────────────
+
+const TEAMS = [
+  "Alabama Crimson Tide",
+  "Arizona State Sun Devils",
+  "Arkansas Razorbacks",
+  "Auburn Tigers",
+  "Baylor Bears",
+  "California Golden Bears",
+  "Clemson Tigers",
+  "Colorado Buffaloes",
+  "Duke Blue Devils",
+  "Florida Gators",
+  "Florida State Seminoles",
+  "Georgia Bulldogs",
+  "Georgia Tech Yellow Jackets",
+  "Houston Cougars",
+  "Illinois Fighting Illini",
+  "Indiana Hoosiers",
+  "Iowa Hawkeyes",
+  "Kansas Jayhawks",
+  "Kentucky Wildcats",
+  "LSU Tigers",
+  "Louisville Cardinals",
+  "Maryland Terrapins",
+  "Memphis Tigers",
+  "Michigan Wolverines",
+  "Minnesota Golden Gophers",
+  "Mississippi State Bulldogs",
+  "Nebraska Cornhuskers",
+  "North Carolina Tar Heels",
+  "North Carolina State Wolfpack",
+  "Northwestern Wildcats",
+  "Notre Dame Fighting Irish",
+  "Ohio State Buckeyes",
+  "Oklahoma Sooners",
+  "Oklahoma State Cowboys",
+  "Ole Miss Rebels",
+  "Oregon Ducks",
+  "Pepperdine Waves",
+  "Purdue Boilermakers",
+  "San Diego State Aztecs",
+  "SMU Mustangs",
+  "South Carolina Gamecocks",
+  "Stanford Cardinal",
+  "TCU Horned Frogs",
+  "Tennessee Volunteers",
+  "Texas Longhorns",
+  "Texas A&M Aggies",
+  "UCLA Bruins",
+  "USC Trojans",
+  "Vanderbilt Commodores",
+  "Wake Forest Demon Deacons",
+];
+
+// Approximate 2024-25 team scoring averages (strokes per round, 18-hole team score)
+// Lower = better. Based on Golfstat.com data.
+const SCORING_AVERAGES = {
+  "Alabama Crimson Tide": 284.1,
+  "Arizona State Sun Devils": 285.4,
+  "Arkansas Razorbacks": 283.6,
+  "Auburn Tigers": 286.2,
+  "Baylor Bears": 288.5,
+  "California Golden Bears": 289.1,
+  "Clemson Tigers": 286.8,
+  "Colorado Buffaloes": 290.3,
+  "Duke Blue Devils": 285.9,
+  "Florida Gators": 284.7,
+  "Florida State Seminoles": 287.3,
+  "Georgia Bulldogs": 283.2,
+  "Georgia Tech Yellow Jackets": 284.4,
+  "Houston Cougars": 287.6,
+  "Illinois Fighting Illini": 288.0,
+  "Indiana Hoosiers": 290.8,
+  "Iowa Hawkeyes": 291.2,
+  "Kansas Jayhawks": 289.4,
+  "Kentucky Wildcats": 286.5,
+  "LSU Tigers": 285.1,
+  "Louisville Cardinals": 287.9,
+  "Maryland Terrapins": 290.5,
+  "Memphis Tigers": 288.8,
+  "Michigan Wolverines": 287.2,
+  "Minnesota Golden Gophers": 290.1,
+  "Mississippi State Bulldogs": 285.7,
+  "Nebraska Cornhuskers": 291.5,
+  "North Carolina Tar Heels": 285.3,
+  "North Carolina State Wolfpack": 286.1,
+  "Northwestern Wildcats": 289.7,
+  "Notre Dame Fighting Irish": 287.0,
+  "Ohio State Buckeyes": 286.4,
+  "Oklahoma Sooners": 284.9,
+  "Oklahoma State Cowboys": 282.8,
+  "Ole Miss Rebels": 284.3,
+  "Oregon Ducks": 288.2,
+  "Pepperdine Waves": 285.6,
+  "Purdue Boilermakers": 290.9,
+  "San Diego State Aztecs": 288.6,
+  "SMU Mustangs": 287.4,
+  "South Carolina Gamecocks": 286.7,
+  "Stanford Cardinal": 283.0,
+  "TCU Horned Frogs": 287.8,
+  "Tennessee Volunteers": 283.9,
+  "Texas Longhorns": 284.5,
+  "Texas A&M Aggies": 285.0,
+  "UCLA Bruins": 284.8,
+  "USC Trojans": 285.2,
+  "Vanderbilt Commodores": 283.5,
+  "Wake Forest Demon Deacons": 284.0,
+};
+
+const METRICS = [
+  { key: "scoring", label: "Team scoring average" },
+  { key: "recruiting", label: "Recruiting & transfer impact" },
+  { key: "tournament", label: "Tournament results & consistency" },
+  { key: "individual", label: "Individual star power ranking" },
+  { key: "budget", label: "Program budget vs performance ROI" },
+  { key: "ncaa", label: "NCAA Regional / Championship projection" },
+  { key: "depth", label: "Roster depth & lineup stability" },
+];
+
+const SOURCES = [
+  { label: "Golfstat — NCAA team scoring averages & live rankings", url: "https://www.golfstat.com" },
+  { label: "NCAA Golf — championship history & official stats", url: "https://www.ncaa.com/sports/golf-men/d1" },
+  { label: "Golfweek — college golf rankings & coverage", url: "https://golfweek.usatoday.com/college-golf/" },
+  { label: "Golf Channel — college golf hub", url: "https://www.golfchannel.com/college-golf" },
+  { label: "247Sports — golf recruiting rankings & commitments", url: "https://247sports.com/sport/golf/" },
+  { label: "Golf Digest — college golf news & program profiles", url: "https://www.golfdigest.com/college-golf" },
+];
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function MetricCard({ label, value, sub, accent }) {
+  return (
+    <div style={{
+      background: "var(--color-background-secondary)",
+      borderRadius: "var(--border-radius-md)",
+      padding: "1rem",
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+    }}>
+      <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>{label}</span>
+      <span style={{ fontSize: 22, fontWeight: 500, color: accent || "var(--color-text-primary)" }}>{value}</span>
+      {sub && <span style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>{sub}</span>}
+    </div>
+  );
+}
+
+// Inverted bar chart — lower stroke score = longer bar
+function ScoringChart({ team1, score1, team2, score2 }) {
+  const nationalAvg = 288.0;
+  const topBenchmark = 282.8;
+
+  const entries = [
+    { label: team1, score: score1, color: "#378ADD" },
+    { label: team2, score: score2, color: "#1D9E75" },
+    { label: "National average", score: nationalAvg, color: "#888780" },
+    { label: "Top program benchmark", score: topBenchmark, color: "#BA7517" },
+  ];
+
+  const worst = Math.max(...entries.map(e => e.score)) + 2;
+  const best = Math.min(...entries.map(e => e.score)) - 1;
+  const range = worst - best;
+
+  return (
+    <div>
+      <p style={{ fontSize: 12, color: "var(--color-text-secondary)", margin: "0 0 12px", fontStyle: "italic" }}>
+        Longer bar = better. Lower strokes per round wins in golf.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {entries.map((e, i) => {
+          const pct = Math.round(((worst - e.score) / range) * 100);
+          return (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, color: "var(--color-text-secondary)", minWidth: 190, textAlign: "right", lineHeight: 1.3 }}>
+                {e.label}
+              </span>
+              <div style={{ flex: 1, background: "var(--color-background-secondary)", borderRadius: 4, height: 22, overflow: "hidden" }}>
+                <div style={{
+                  width: `${pct}%`,
+                  height: "100%",
+                  background: e.color,
+                  borderRadius: 4,
+                  transition: "width 0.6s ease",
+                }} />
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 500, minWidth: 42, textAlign: "right" }}>
+                {e.score.toFixed(1)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 12, fontSize: 11, color: "var(--color-text-secondary)" }}>
+        {entries.map(e => (
+          <span key={e.label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 2, background: e.color, display: "inline-block", flexShrink: 0 }} />
+            {e.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Standard index chart for non-scoring metrics
+function IndexChart({ data }) {
+  if (!data || data.length === 0) return null;
+  const max = Math.max(...data.map(d => d.value));
+  const palette = ["#378ADD", "#1D9E75", "#888780", "#BA7517"];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {data.map((d, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 12, color: "var(--color-text-secondary)", minWidth: 190, textAlign: "right", lineHeight: 1.3 }}>
+            {d.label}
+          </span>
+          <div style={{ flex: 1, background: "var(--color-background-secondary)", borderRadius: 4, height: 22, overflow: "hidden" }}>
+            <div style={{
+              width: `${Math.round((d.value / max) * 100)}%`,
+              height: "100%",
+              background: palette[i] || "#378ADD",
+              borderRadius: 4,
+              transition: "width 0.6s ease",
+            }} />
+          </div>
+          <span style={{ fontSize: 12, fontWeight: 500, minWidth: 32, textAlign: "right" }}>{d.value}</span>
+        </div>
+      ))}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 4, fontSize: 11, color: "var(--color-text-secondary)" }}>
+        {data.map((d, i) => (
+          <span key={d.label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 2, background: palette[i], display: "inline-block", flexShrink: 0 }} />
+            {d.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export default function CollegeGolfAnalytics() {
+  const [metric, setMetric] = useState(METRICS[0].key);
+  const [team1, setTeam1] = useState(TEAMS[48]); // Vanderbilt
+  const [team2, setTeam2] = useState(TEAMS[33]); // Oklahoma State
+  const [analysis, setAnalysis] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [indexChart, setIndexChart] = useState([]);
+  const [cards, setCards] = useState([]);
+  const [conf1, setConf1] = useState("");
+  const [conf2, setConf2] = useState("");
+  const abortRef = useRef(null);
+
+  const isScoringMetric = metric === "scoring";
+
+  const runAnalysis = async () => {
+    if (team1 === team2) {
+      setAnalysis("Please select two different programs to compare.");
+      return;
+    }
+
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setLoading(true);
+    setAnalysis("");
+    setIndexChart([]);
+    setCards([]);
+    setConf1("");
+    setConf2("");
+
+    const metricLabel = METRICS.find(m => m.key === metric)?.label;
+    const score1 = SCORING_AVERAGES[team1];
+    const score2 = SCORING_AVERAGES[team2];
+
+    const scoringContext = isScoringMetric
+      ? `Use these actual 2024-25 scoring averages: ${team1} = ${score1} strokes/round, ${team2} = ${score2} strokes/round. National D1 average ≈ 288.0.`
+      : "";
+
+    const prompt = `You are an expert NCAA college golf analyst. Compare the men's golf programs of ${team1} and ${team2} on the metric: "${metricLabel}" for the 2024-25 season. ${scoringContext}
+
+Respond ONLY with a valid JSON object — no markdown, no backticks, no extra text:
+{
+  "conf1": "conference name for ${team1}",
+  "conf2": "conference name for ${team2}",
+  "summary": "2-3 sentence expert analysis comparing these two programs on this metric, using real program history and data",
+  "insight": "1 actionable insight for an athletic department or analyst evaluating these programs",
+  "cards": [
+    {"label": "relevant stat", "value": "realistic value", "sub": "brief context"},
+    {"label": "relevant stat", "value": "realistic value", "sub": "brief context"},
+    {"label": "relevant stat", "value": "realistic value", "sub": "brief context"},
+    {"label": "relevant stat", "value": "realistic value", "sub": "brief context"}
+  ],
+  "chart": [
+    {"label": "${team1}", "value": 85},
+    {"label": "${team2}", "value": 78},
+    {"label": "National Average", "value": 62},
+    {"label": "Top Program", "value": 96}
+  ]
+}
+
+${isScoringMetric
+  ? "For the chart field, return 1–100 index values for visual comparison. Cards must include the real stroke average, stroke differential vs national average, and national rank estimate."
+  : "Chart values must be integers 1–100. Cards should use real sport-specific stats like recruiting rank, NCAA appearances, or win percentage."
+}`;
+
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }],
+        }),
+        signal: controller.signal,
+      });
+
+      const data = await response.json();
+      const text = data.content?.map(b => b.text || "").join("") || "";
+
+      try {
+        const clean = text.replace(/```json|```/g, "").trim();
+        const parsed = JSON.parse(clean);
+        setConf1(parsed.conf1 || "");
+        setConf2(parsed.conf2 || "");
+        setCards(parsed.cards || []);
+        if (!isScoringMetric) setIndexChart(parsed.chart || []);
+        setAnalysis(
+          (parsed.summary || "") +
+          (parsed.insight ? `\n\nKey insight: ${parsed.insight}` : "")
+        );
+      } catch {
+        setAnalysis(text);
+      }
+    } catch (e) {
+      if (e.name !== "AbortError") setAnalysis("Error fetching analysis. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const score1 = SCORING_AVERAGES[team1];
+  const score2 = SCORING_AVERAGES[team2];
+
+  return (
+    <div style={{ padding: "1.5rem 0", fontFamily: "var(--font-sans)" }}>
+
+      {/* Header */}
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h2 style={{ fontSize: 18, fontWeight: 500, margin: "0 0 4px", color: "var(--color-text-primary)" }}>
+          ⛳ College golf analytics
+        </h2>
+        <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: 0 }}>
+          AI-powered NCAA men's golf program comparison — 50 programs
+        </p>
+      </div>
+
+      {/* Program selectors */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: "1rem" }}>
+        <div>
+          <label style={{ fontSize: 12, color: "var(--color-text-secondary)", display: "block", marginBottom: 4 }}>Program A</label>
+          <select value={team1} onChange={e => setTeam1(e.target.value)} style={{ width: "100%" }}>
+            {TEAMS.map(t => <option key={t}>{t}</option>)}
+          </select>
+          {conf1 && <span style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 4, display: "block" }}>{conf1}</span>}
+        </div>
+        <div>
+          <label style={{ fontSize: 12, color: "var(--color-text-secondary)", display: "block", marginBottom: 4 }}>Program B</label>
+          <select value={team2} onChange={e => setTeam2(e.target.value)} style={{ width: "100%" }}>
+            {TEAMS.map(t => <option key={t}>{t}</option>)}
+          </select>
+          {conf2 && <span style={{ fontSize: 11, color: "var(--color-text-secondary)", marginTop: 4, display: "block" }}>{conf2}</span>}
+        </div>
+      </div>
+
+      {/* Scoring preview strip — visible any time scoring metric is active */}
+      {isScoringMetric && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 12,
+          marginBottom: "1rem",
+          padding: "0.75rem 1rem",
+          background: "var(--color-background-secondary)",
+          borderRadius: "var(--border-radius-md)",
+        }}>
+          <div>
+            <span style={{ fontSize: 11, color: "var(--color-text-secondary)", display: "block" }}>{team1}</span>
+            <span style={{ fontSize: 20, fontWeight: 500, color: "#378ADD" }}>{score1.toFixed(1)}</span>
+            <span style={{ fontSize: 11, color: "var(--color-text-secondary)" }}> strokes / round</span>
+          </div>
+          <div>
+            <span style={{ fontSize: 11, color: "var(--color-text-secondary)", display: "block" }}>{team2}</span>
+            <span style={{ fontSize: 20, fontWeight: 500, color: "#1D9E75" }}>{score2.toFixed(1)}</span>
+            <span style={{ fontSize: 11, color: "var(--color-text-secondary)" }}> strokes / round</span>
+          </div>
+        </div>
+      )}
+
+      {/* Metric selector */}
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ fontSize: 12, color: "var(--color-text-secondary)", display: "block", marginBottom: 4 }}>Analysis focus</label>
+        <select value={metric} onChange={e => setMetric(e.target.value)} style={{ width: "100%" }}>
+          {METRICS.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+        </select>
+      </div>
+
+      {/* Run button */}
+      <button
+        onClick={runAnalysis}
+        disabled={loading}
+        style={{
+          width: "100%",
+          padding: "10px",
+          borderRadius: "var(--border-radius-md)",
+          border: "0.5px solid var(--color-border-secondary)",
+          background: loading ? "var(--color-background-secondary)" : "var(--color-background-primary)",
+          color: "var(--color-text-primary)",
+          fontSize: 14,
+          fontWeight: 500,
+          cursor: loading ? "not-allowed" : "pointer",
+          marginBottom: "1.5rem",
+        }}
+      >
+        {loading ? "Analyzing..." : "Run analysis ↗"}
+      </button>
+
+      {/* Metric cards */}
+      {(cards.length > 0 || loading) && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: "1.5rem" }}>
+          {cards.length > 0
+            ? cards.map((c, i) => (
+                <MetricCard key={i} label={c.label} value={c.value} sub={c.sub} accent={i % 2 === 0 ? "#378ADD" : "#1D9E75"} />
+              ))
+            : [0, 1, 2, 3].map(i => <MetricCard key={i} label="Loading..." value="—" />)}
+        </div>
+      )}
+
+      {/* Chart */}
+      {(isScoringMetric ? (analysis || loading) : indexChart.length > 0) && (
+        <div style={{
+          background: "var(--color-background-primary)",
+          border: "0.5px solid var(--color-border-tertiary)",
+          borderRadius: "var(--border-radius-lg)",
+          padding: "1rem 1.25rem",
+          marginBottom: "1.5rem",
+        }}>
+          <p style={{ fontSize: 13, fontWeight: 500, margin: "0 0 1rem", color: "var(--color-text-secondary)" }}>
+            {isScoringMetric
+              ? "Team scoring average — strokes per round (lower is better)"
+              : `Comparative index — ${METRICS.find(m => m.key === metric)?.label}`}
+          </p>
+          {isScoringMetric
+            ? <ScoringChart team1={team1} score1={score1} team2={team2} score2={score2} />
+            : <IndexChart data={indexChart} />}
+        </div>
+      )}
+
+      {/* AI analysis */}
+      {(analysis || loading) && (
+        <div style={{
+          background: "var(--color-background-primary)",
+          border: "0.5px solid var(--color-border-tertiary)",
+          borderRadius: "var(--border-radius-lg)",
+          padding: "1rem 1.25rem",
+          marginBottom: "1.5rem",
+        }}>
+          <p style={{ fontSize: 13, fontWeight: 500, margin: "0 0 8px", color: "var(--color-text-secondary)" }}>
+            ⛳ Analysis — {team1} vs {team2}
+          </p>
+          <div style={{ fontSize: 14, lineHeight: 1.7, color: "var(--color-text-primary)", whiteSpace: "pre-wrap", minHeight: 80 }}>
+            {loading && !analysis
+              ? <span style={{ color: "var(--color-text-secondary)" }}>Analyzing programs...</span>
+              : analysis}
+            {loading && analysis && <span style={{ opacity: 0.5 }}>▍</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!analysis && !loading && (
+        <div style={{
+          textAlign: "center",
+          padding: "2rem",
+          color: "var(--color-text-secondary)",
+          fontSize: 13,
+          border: "0.5px dashed var(--color-border-tertiary)",
+          borderRadius: "var(--border-radius-lg)",
+          marginBottom: "1.5rem",
+        }}>
+          Select two programs and an analysis focus — then click Run analysis
+        </div>
+      )}
+
+      {/* Sources */}
+      <div style={{
+        borderTop: "0.5px solid var(--color-border-tertiary)",
+        paddingTop: "1rem",
+      }}>
+        <p style={{ fontSize: 12, fontWeight: 500, color: "var(--color-text-secondary)", margin: "0 0 8px" }}>
+          Data sources
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {SOURCES.map((s, i) => (
+            <a
+              key={i}
+              href={s.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ fontSize: 12, color: "#378ADD", textDecoration: "none", display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <span style={{ opacity: 0.5, fontSize: 10 }}>↗</span>
+              {s.label}
+            </a>
+          ))}
+        </div>
+      </div>
+
+    </div>
+  );
+}
