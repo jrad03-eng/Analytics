@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>College Golf Analytics</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f9f9f7;
+      --surface: #ffffff;
+      --surface2: #f1efe8;
+      --text: #1a1a18;
+      --text2: #5f5e5a;
+      --border: rgba(0,0,0,0.12);
+      --border2: rgba(0,0,0,0.22);
+      --blue: #378ADD;
+      --green: #1D9E75;
+      --gray: #888780;
+      --amber: #BA7517;
+      --radius: 8px;
+      --radius-lg: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141412;
+        --surface: #1e1e1c;
+        --surface2: #2c2c2a;
+        --text: #f0ede6;
+        --text2: #b4b2a9;
+        --border: rgba(255,255,255,0.1);
+        --border2: rgba(255,255,255,0.2);
+      }
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .wrap { max-width: 700px; margin: 0 auto; }
+
+    h1 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+    .subtitle { font-size: 13px; color: var(--text2); margin-bottom: 1.5rem; }
+
+    /* API key banner */
+    #api-banner {
+      background: var(--surface2);
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 1.25rem;
+      font-size: 13px;
+      color: var(--text2);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    #api-banner input {
+      flex: 1;
+      min-width: 200px;
+      padding: 6px 10px;
+      border-radius: var(--radius);
+      border: 0.5px solid var(--border2);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+      font-family: monospace;
+    }
+    #api-banner button {
+      padding: 6px 14px;
+      border-radius: var(--radius);
+      border: 0.5px solid var(--border2);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    #api-key-saved { font-size: 12px; color: var(--green); display: none; }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1rem; }
+
+    label { font-size: 12px; color: var(--text2); display: block; margin-bottom: 4px; }
+
+    select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: var(--radius);
+      border: 0.5px solid var(--border2);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+      outline: none;
+    }
+    select:focus { box-shadow: 0 0 0 2px rgba(55,138,221,0.25); }
+
+    .conf-label { font-size: 11px; color: var(--text2); margin-top: 4px; min-height: 16px; }
+
+    .scoring-strip {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      background: var(--surface2);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin-bottom: 1rem;
+    }
+    .scoring-strip .score-val { font-size: 20px; font-weight: 500; }
+    .scoring-strip .score-sub { font-size: 11px; color: var(--text2); }
+
+    #run-btn {
+      width: 100%;
+      padding: 10px;
+      border-radius: var(--radius);
+      border: 0.5px solid var(--border2);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      margin-bottom: 1.5rem;
+      transition: background 0.15s;
+    }
+    #run-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    #run-btn:hover:not(:disabled) { background: var(--surface2); }
+
+    /* Cards */
+    .cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1.5rem; }
+    .card {
+      background: var(--surface2);
+      border-radius: var(--radius);
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .card-label { font-size: 12px; color: var(--text2); }
+    .card-value { font-size: 22px; font-weight: 500; }
+    .card-sub { font-size: 12px; color: var(--text2); }
+
+    /* Chart panel */
+    .chart-panel {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .chart-title { font-size: 13px; font-weight: 500; color: var(--text2); margin-bottom: 1rem; }
+    .chart-note { font-size: 12px; color: var(--text2); font-style: italic; margin-bottom: 12px; }
+    .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .bar-label { font-size: 12px; color: var(--text2); min-width: 190px; text-align: right; line-height: 1.3; }
+    .bar-track { flex: 1; background: var(--surface2); border-radius: 4px; height: 22px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+    .bar-num { font-size: 12px; font-weight: 500; min-width: 42px; text-align: right; }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+    .legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text2); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+    /* Analysis */
+    .analysis-panel {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .analysis-header { font-size: 13px; font-weight: 500; color: var(--text2); margin-bottom: 8px; }
+    .analysis-body { font-size: 14px; line-height: 1.7; white-space: pre-wrap; min-height: 80px; }
+    .cursor { opacity: 0.5; }
+
+    /* Empty state */
+    .empty {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text2);
+      font-size: 13px;
+      border: 0.5px dashed var(--border);
+      border-radius: var(--radius-lg);
+      margin-bottom: 1.5rem;
+    }
+
+    /* Sources */
+    .sources { border-top: 0.5px solid var(--border); padding-top: 1rem; }
+    .sources-title { font-size: 12px; font-weight: 500; color: var(--text2); margin-bottom: 8px; }
+    .source-link {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--blue);
+      text-decoration: none;
+      margin-bottom: 6px;
+    }
+    .source-link:hover { text-decoration: underline; }
+    .source-arrow { opacity: 0.5; font-size: 10px; }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>⛳ College golf analytics</h1>
+  <p class="subtitle">AI-powered NCAA men's golf program comparison — 50 programs</p>
+
+  <!-- API Key -->
+  <div id="api-banner">
+    <span>Anthropic API key:</span>
+    <input type="password" id="api-key-input" placeholder="sk-ant-..." />
+    <button onclick="saveKey()">Save</button>
+    <span id="api-key-saved">✓ Saved</span>
+  </div>
+
+  <!-- Program selectors -->
+  <div class="grid2">
+    <div>
+      <label>Program A</label>
+      <select id="team1" onchange="onTeamChange()"></select>
+      <div class="conf-label" id="conf1"></div>
+    </div>
+    <div>
+      <label>Program B</label>
+      <select id="team2" onchange="onTeamChange()"></select>
+      <div class="conf-label" id="conf2"></div>
+    </div>
+  </div>
+
+  <!-- Scoring strip -->
+  <div class="scoring-strip hidden" id="scoring-strip">
+    <div>
+      <div class="conf-label" id="strip-label1"></div>
+      <span class="score-val" id="strip-val1" style="color:var(--blue)"></span>
+      <span class="score-sub"> strokes / round</span>
+    </div>
+    <div>
+      <div class="conf-label" id="strip-label2"></div>
+      <span class="score-val" id="strip-val2" style="color:var(--green)"></span>
+      <span class="score-sub"> strokes / round</span>
+    </div>
+  </div>
+
+  <!-- Metric selector -->
+  <div style="margin-bottom:1rem">
+    <label>Analysis focus</label>
+    <select id="metric" onchange="onMetricChange()"></select>
+  </div>
+
+  <!-- Run button -->
+  <button id="run-btn" onclick="runAnalysis()">Run analysis ↗</button>
+
+  <!-- Metric cards -->
+  <div class="cards-grid hidden" id="cards-grid"></div>
+
+  <!-- Chart -->
+  <div class="chart-panel hidden" id="chart-panel">
+    <div class="chart-title" id="chart-title"></div>
+    <div class="chart-note hidden" id="chart-note">Longer bar = better. Lower strokes per round wins in golf.</div>
+    <div id="chart-bars"></div>
+    <div class="legend" id="chart-legend"></div>
+  </div>
+
+  <!-- Analysis -->
+  <div class="analysis-panel hidden" id="analysis-panel">
+    <div class="analysis-header" id="analysis-header"></div>
+    <div class="analysis-body" id="analysis-body"></div>
+  </div>
+
+  <!-- Empty state -->
+  <div class="empty" id="empty-state">Select two programs and an analysis focus — then click Run analysis</div>
+
+  <!-- Sources -->
+  <div class="sources">
+    <div class="sources-title">Data sources</div>
+    <a class="source-link" href="https://www.golfstat.com" target="_blank" rel="noopener"><span class="source-arrow">↗</span>Golfstat — NCAA team scoring averages &amp; live rankings</a>
+    <a class="source-link" href="https://www.ncaa.com/sports/golf-men/d1" target="_blank" rel="noopener"><span class="source-arrow">↗</span>NCAA Golf — championship history &amp; official stats</a>
+    <a class="source-link" href="https://golfweek.usatoday.com/college-golf/" target="_blank" rel="noopener"><span class="source-arrow">↗</span>Golfweek — college golf rankings &amp; coverage</a>
+    <a class="source-link" href="https://www.golfchannel.com/college-golf" target="_blank" rel="noopener"><span class="source-arrow">↗</span>Golf Channel — college golf hub</a>
+    <a class="source-link" href="https://247sports.com/sport/golf/" target="_blank" rel="noopener"><span class="source-arrow">↗</span>247Sports — golf recruiting rankings &amp; commitments</a>
+    <a class="source-link" href="https://www.golfdigest.com/college-golf" target="_blank" rel="noopener"><span class="source-arrow">↗</span>Golf Digest — college golf news &amp; program profiles</a>
+  </div>
+
+</div>
+
+<script>
+const TEAMS = [
+  "Alabama Crimson Tide","Arizona State Sun Devils","Arkansas Razorbacks",
+  "Auburn Tigers","Baylor Bears","California Golden Bears","Clemson Tigers",
+  "Colorado Buffaloes","Duke Blue Devils","Florida Gators","Florida State Seminoles",
+  "Georgia Bulldogs","Georgia Tech Yellow Jackets","Houston Cougars",
+  "Illinois Fighting Illini","Indiana Hoosiers","Iowa Hawkeyes","Kansas Jayhawks",
+  "Kentucky Wildcats","LSU Tigers","Louisville Cardinals","Maryland Terrapins",
+  "Memphis Tigers","Michigan Wolverines","Minnesota Golden Gophers",
+  "Mississippi State Bulldogs","Nebraska Cornhuskers","North Carolina Tar Heels",
+  "North Carolina State Wolfpack","Northwestern Wildcats","Notre Dame Fighting Irish",
+  "Ohio State Buckeyes","Oklahoma Sooners","Oklahoma State Cowboys","Ole Miss Rebels",
+  "Oregon Ducks","Pepperdine Waves","Purdue Boilermakers","San Diego State Aztecs",
+  "SMU Mustangs","South Carolina Gamecocks","Stanford Cardinal","TCU Horned Frogs",
+  "Tennessee Volunteers","Texas Longhorns","Texas A&M Aggies","UCLA Bruins",
+  "USC Trojans","Vanderbilt Commodores","Wake Forest Demon Deacons"
+];
+
+const SCORING_AVERAGES = {
+  "Alabama Crimson Tide":284.1,"Arizona State Sun Devils":285.4,"Arkansas Razorbacks":283.6,
+  "Auburn Tigers":286.2,"Baylor Bears":288.5,"California Golden Bears":289.1,
+  "Clemson Tigers":286.8,"Colorado Buffaloes":290.3,"Duke Blue Devils":285.9,
+  "Florida Gators":284.7,"Florida State Seminoles":287.3,"Georgia Bulldogs":283.2,
+  "Georgia Tech Yellow Jackets":284.4,"Houston Cougars":287.6,"Illinois Fighting Illini":288.0,
+  "Indiana Hoosiers":290.8,"Iowa Hawkeyes":291.2,"Kansas Jayhawks":289.4,
+  "Kentucky Wildcats":286.5,"LSU Tigers":285.1,"Louisville Cardinals":287.9,
+  "Maryland Terrapins":290.5,"Memphis Tigers":288.8,"Michigan Wolverines":287.2,
+  "Minnesota Golden Gophers":290.1,"Mississippi State Bulldogs":285.7,
+  "Nebraska Cornhuskers":291.5,"North Carolina Tar Heels":285.3,
+  "North Carolina State Wolfpack":286.1,"Northwestern Wildcats":289.7,
+  "Notre Dame Fighting Irish":287.0,"Ohio State Buckeyes":286.4,"Oklahoma Sooners":284.9,
+  "Oklahoma State Cowboys":282.8,"Ole Miss Rebels":284.3,"Oregon Ducks":288.2,
+  "Pepperdine Waves":285.6,"Purdue Boilermakers":290.9,"San Diego State Aztecs":288.6,
+  "SMU Mustangs":287.4,"South Carolina Gamecocks":286.7,"Stanford Cardinal":283.0,
+  "TCU Horned Frogs":287.8,"Tennessee Volunteers":283.9,"Texas Longhorns":284.5,
+  "Texas A&M Aggies":285.0,"UCLA Bruins":284.8,"USC Trojans":285.2,
+  "Vanderbilt Commodores":283.5,"Wake Forest Demon Deacons":284.0
+};
+
+const METRICS = [
+  {key:"scoring",   label:"Team scoring average"},
+  {key:"recruiting",label:"Recruiting & transfer impact"},
+  {key:"tournament",label:"Tournament results & consistency"},
+  {key:"individual",label:"Individual star power ranking"},
+  {key:"budget",    label:"Program budget vs performance ROI"},
+  {key:"ncaa",      label:"NCAA Regional / Championship projection"},
+  {key:"depth",     label:"Roster depth & lineup stability"},
+];
+
+const PALETTE = ["#378ADD","#1D9E75","#888780","#BA7517"];
+
+let abortController = null;
+let apiKey = "";
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+function init() {
+  const t1 = document.getElementById("team1");
+  const t2 = document.getElementById("team2");
+  TEAMS.forEach(t => {
+    t1.appendChild(new Option(t, t));
+    t2.appendChild(new Option(t, t));
+  });
+  t1.value = "Vanderbilt Commodores";
+  t2.value = "Oklahoma State Cowboys";
+
+  const met = document.getElementById("metric");
+  METRICS.forEach(m => met.appendChild(new Option(m.label, m.key)));
+
+  onTeamChange();
+  onMetricChange();
+}
+
+function saveKey() {
+  apiKey = document.getElementById("api-key-input").value.trim();
+  document.getElementById("api-key-saved").style.display = apiKey ? "inline" : "none";
+}
+
+function onTeamChange() {
+  const t1 = document.getElementById("team1").value;
+  const t2 = document.getElementById("team2").value;
+  updateScoringStrip(t1, t2);
+}
+
+function onMetricChange() {
+  const metric = document.getElementById("metric").value;
+  const strip = document.getElementById("scoring-strip");
+  if (metric === "scoring") strip.classList.remove("hidden");
+  else strip.classList.add("hidden");
+}
+
+function updateScoringStrip(t1, t2) {
+  document.getElementById("strip-label1").textContent = t1;
+  document.getElementById("strip-val1").textContent = SCORING_AVERAGES[t1].toFixed(1);
+  document.getElementById("strip-label2").textContent = t2;
+  document.getElementById("strip-val2").textContent = SCORING_AVERAGES[t2].toFixed(1);
+}
+
+// ── Run analysis ──────────────────────────────────────────────────────────────
+async function runAnalysis() {
+  const team1 = document.getElementById("team1").value;
+  const team2 = document.getElementById("team2").value;
+  const metricKey = document.getElementById("metric").value;
+  const metricLabel = METRICS.find(m => m.key === metricKey).label;
+
+  if (team1 === team2) { showAnalysis("Please select two different programs."); return; }
+  if (!apiKey) { showAnalysis("Please enter your Anthropic API key above."); return; }
+
+  if (abortController) abortController.abort();
+  abortController = new AbortController();
+
+  setLoading(true);
+  clearResults();
+
+  const score1 = SCORING_AVERAGES[team1];
+  const score2 = SCORING_AVERAGES[team2];
+  const isSc = metricKey === "scoring";
+
+  const scoringCtx = isSc
+    ? `Use these actual 2024-25 scoring averages: ${team1} = ${score1} strokes/round, ${team2} = ${score2} strokes/round. National D1 average ≈ 288.0.`
+    : "";
+
+  const prompt = `You are an expert NCAA college golf analyst. Compare the men's golf programs of ${team1} and ${team2} on the metric: "${metricLabel}" for the 2024-25 season. ${scoringCtx}
+
+Respond ONLY with a valid JSON object — no markdown, no backticks, no extra text:
+{
+  "conf1": "conference name for ${team1}",
+  "conf2": "conference name for ${team2}",
+  "summary": "2-3 sentence expert analysis comparing these two programs on this metric, using real program history and data",
+  "insight": "1 actionable insight for an athletic department or analyst evaluating these programs",
+  "cards": [
+    {"label":"relevant stat","value":"realistic value","sub":"brief context"},
+    {"label":"relevant stat","value":"realistic value","sub":"brief context"},
+    {"label":"relevant stat","value":"realistic value","sub":"brief context"},
+    {"label":"relevant stat","value":"realistic value","sub":"brief context"}
+  ],
+  "chart": [
+    {"label":"${team1}","value":85},
+    {"label":"${team2}","value":78},
+    {"label":"National Average","value":62},
+    {"label":"Top Program","value":96}
+  ]
+}
+${isSc
+  ? "For the chart field return 1-100 index values. Cards must include real stroke average, stroke differential vs national avg, and estimated national rank."
+  : "Chart values must be integers 1-100. Cards should use real sport-specific stats."}`;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        messages: [{role:"user", content: prompt}],
+      }),
+      signal: abortController.signal,
+    });
+
+    const data = await res.json();
+    const text = (data.content || []).map(b => b.text || "").join("");
+
+    try {
+      const parsed = JSON.parse(text.replace(/```json|```/g,"").trim());
+      document.getElementById("conf1").textContent = parsed.conf1 || "";
+      document.getElementById("conf2").textContent = parsed.conf2 || "";
+      renderCards(parsed.cards || []);
+      renderChart(parsed.chart || [], team1, team2, metricKey, metricLabel, score1, score2);
+      showAnalysis((parsed.summary || "") + (parsed.insight ? "\n\nKey insight: " + parsed.insight : ""), team1, team2);
+    } catch {
+      showAnalysis(text, team1, team2);
+    }
+  } catch(e) {
+    if (e.name !== "AbortError") showAnalysis("Error fetching analysis. Please check your API key and try again.");
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ── Render helpers ────────────────────────────────────────────────────────────
+function clearResults() {
+  document.getElementById("conf1").textContent = "";
+  document.getElementById("conf2").textContent = "";
+  document.getElementById("cards-grid").innerHTML = "";
+  document.getElementById("cards-grid").classList.add("hidden");
+  document.getElementById("chart-panel").classList.add("hidden");
+  document.getElementById("chart-bars").innerHTML = "";
+  document.getElementById("chart-legend").innerHTML = "";
+  document.getElementById("analysis-panel").classList.add("hidden");
+  document.getElementById("analysis-body").textContent = "";
+  document.getElementById("empty-state").classList.add("hidden");
+}
+
+function setLoading(on) {
+  const btn = document.getElementById("run-btn");
+  btn.disabled = on;
+  btn.textContent = on ? "Analyzing..." : "Run analysis ↗";
+  if (on) {
+    document.getElementById("cards-grid").innerHTML = loadingCards();
+    document.getElementById("cards-grid").classList.remove("hidden");
+  }
+}
+
+function loadingCards() {
+  return [0,1,2,3].map(() =>
+    `<div class="card"><div class="card-label">Loading...</div><div class="card-value" style="color:var(--text2)">—</div></div>`
+  ).join("");
+}
+
+function renderCards(cards) {
+  const grid = document.getElementById("cards-grid");
+  grid.innerHTML = cards.map((c, i) => `
+    <div class="card">
+      <div class="card-label">${c.label}</div>
+      <div class="card-value" style="color:${i%2===0?'var(--blue)':'var(--green)'}">${c.value}</div>
+      ${c.sub ? `<div class="card-sub">${c.sub}</div>` : ""}
+    </div>`).join("");
+  grid.classList.remove("hidden");
+}
+
+function renderChart(indexData, team1, team2, metricKey, metricLabel, score1, score2) {
+  const panel = document.getElementById("chart-panel");
+  const titleEl = document.getElementById("chart-title");
+  const noteEl = document.getElementById("chart-note");
+  const barsEl = document.getElementById("chart-bars");
+  const legendEl = document.getElementById("chart-legend");
+
+  panel.classList.remove("hidden");
+
+  if (metricKey === "scoring") {
+    titleEl.textContent = "Team scoring average — strokes per round (lower is better)";
+    noteEl.classList.remove("hidden");
+
+    const entries = [
+      {label: team1,                   score: score1, color: PALETTE[0]},
+      {label: team2,                   score: score2, color: PALETTE[1]},
+      {label: "National average",      score: 288.0,  color: PALETTE[2]},
+      {label: "Top program benchmark", score: 282.8,  color: PALETTE[3]},
+    ];
+    const worst = Math.max(...entries.map(e => e.score)) + 2;
+    const best  = Math.min(...entries.map(e => e.score)) - 1;
+    const range = worst - best;
+
+    barsEl.innerHTML = entries.map(e => {
+      const pct = Math.round(((worst - e.score) / range) * 100);
+      return `<div class="bar-row">
+        <span class="bar-label">${e.label}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${e.color}"></div></div>
+        <span class="bar-num">${e.score.toFixed(1)}</span>
+      </div>`;
+    }).join("");
+
+    legendEl.innerHTML = entries.map(e =>
+      `<span class="legend-item"><span class="legend-dot" style="background:${e.color}"></span>${e.label}</span>`
+    ).join("");
+
+  } else {
+    noteEl.classList.add("hidden");
+    titleEl.textContent = `Comparative index — ${metricLabel}`;
+    const max = Math.max(...indexData.map(d => d.value));
+
+    barsEl.innerHTML = indexData.map((d, i) => {
+      const pct = Math.round((d.value / max) * 100);
+      return `<div class="bar-row">
+        <span class="bar-label">${d.label}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${PALETTE[i]||PALETTE[0]}"></div></div>
+        <span class="bar-num">${d.value}</span>
+      </div>`;
+    }).join("");
+
+    legendEl.innerHTML = indexData.map((d, i) =>
+      `<span class="legend-item"><span class="legend-dot" style="background:${PALETTE[i]||PALETTE[0]}"></span>${d.label}</span>`
+    ).join("");
+  }
+}
+
+function showAnalysis(text, team1, team2) {
+  const panel = document.getElementById("analysis-panel");
+  document.getElementById("analysis-header").textContent =
+    team1 && team2 ? `⛳ Analysis — ${team1} vs ${team2}` : "⛳ Analysis";
+  document.getElementById("analysis-body").textContent = text;
+  panel.classList.remove("hidden");
+  document.getElementById("empty-state").classList.add("hidden");
+}
+
+init();
+</script>
+</body>
+</html>
